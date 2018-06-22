@@ -1,4 +1,6 @@
 import random
+import re
+from slackbot.bot import Bot, default_reply, listen_to, respond_to
 
 users = {}
 
@@ -44,10 +46,9 @@ class User:
     def generate_sentence(self):
         start = random.choice(list(self.corpus.keys()))
         words = [start]
-        # length = random.randint(0, 10)
-        length = 10
+        max_length = 100
         word = start
-        for i in range(length):
+        for i in range(max_length):
             # rename w
             w = self.corpus.get(word, None)
             if w is not None:
@@ -62,6 +63,7 @@ class User:
 
         return ' '.join(words)
 
+
     def choose_next_word(self, word_dict):
         words = []
         weights = []
@@ -73,3 +75,32 @@ class User:
         else:
             # not sure this is a case...
             return False
+
+
+USERNAME_REGEX = r'<@([\w]{9})>'
+
+
+@respond_to('@\w+')
+def respond(message):
+    text = message.body['text']
+    user_id = re.match(USERNAME_REGEX, text).group(1)
+
+    print(user_id)
+    print("{}".format([u for u in users.keys()]))
+
+    if user_id in users.keys():
+        user = users[user_id]
+        message.send(user.generate_sentence())
+    else:
+        message.send('Who is that?!')
+
+
+@listen_to('.*')
+def listen(message):
+    user_id = message.user['id']
+    if user_id in users.keys():
+        user = users[user_id]
+        user.update_corpus(message.body['text'])
+    else:
+        user = User(user_id, message.body['text'])
+        users[user_id] = user
