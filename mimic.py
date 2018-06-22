@@ -1,8 +1,34 @@
+import json
 import random
 import re
 from slackbot.bot import Bot, default_reply, listen_to, respond_to
+import pdb
 
-users = {}
+USERNAME_REGEX = r'<@([\w]{9})>'
+
+USERS = {}
+
+
+def load_corpus():
+    with open("corpus.json", 'r') as file:
+        data = file.read()
+        data_json = json.loads(data)
+
+    global USERS
+    for user_id, corpus in data_json.items():
+        USERS[user_id] = User(user_id, corpus=corpus)
+    print('got json {}'.format(data_json))
+    print('USERS {}'.format(USERS))
+
+
+def write_corpus():
+    data = {}
+    global USERS
+    for user in USERS.values():
+        data[user.slack_id] = user.corpus
+
+    with open("corpus.json", 'w') as file:
+        file.write(json.dumps(data))
 
 
 class User:
@@ -17,9 +43,15 @@ class User:
     }   
     """
 
-    def __init__(self, id, message):
+    def __init__(self, id, corpus=None):
+        """
+        Support passing in the entire corpus so we can load this from the file
+        :param id:
+        :param corpus:
+        """
         self.slack_id = id
-        self.update_corpus(message)
+        if corpus:
+            self.corpus = corpus
 
     @staticmethod
     def make_pairs(message):
@@ -77,19 +109,17 @@ class User:
             return False
 
 
-USERNAME_REGEX = r'<@([\w]{9})>'
-
-
 @respond_to('@\w+')
 def respond(message):
     text = message.body['text']
     user_id = re.match(USERNAME_REGEX, text).group(1)
 
+    load_corpus()
     print(user_id)
-    print("{}".format([u for u in users.keys()]))
+    print("{}".format([u for u in USERS.keys()]))
 
-    if user_id in users.keys():
-        user = users[user_id]
+    if user_id in USERS.keys():
+        user = USERS[user_id]
         message.send(user.generate_sentence())
     else:
         message.send('Who is that?!')
@@ -98,9 +128,23 @@ def respond(message):
 @listen_to('.*')
 def listen(message):
     user_id = message.user['id']
-    if user_id in users.keys():
-        user = users[user_id]
+    load_corpus()
+    if user_id in USERS.keys():
+        # users we know
+        user = USERS[user_id]
         user.update_corpus(message.body['text'])
     else:
-        user = User(user_id, message.body['text'])
-        users[user_id] = user
+        # users we dont know yet
+        user = User(user_id)
+        user.update_corpus(message.body['text'])
+        USERS[user_id] = user
+    write_corpus()
+
+
+def main():
+    bot = Bot()
+    bot.run()
+
+
+if __name__ == "__main__":
+    main()
