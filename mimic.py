@@ -10,25 +10,24 @@ USERS = {}
 
 
 def load_corpus():
-    with open("corpus.json", 'r') as file:
-        data = file.read()
+    global USERS
+    with open("corpus.json", 'r') as f:
+        data = f.read()
         data_json = json.loads(data)
 
-    global USERS
     for user_id, corpus in data_json.items():
         USERS[user_id] = User(user_id, corpus=corpus)
-    print('got json {}'.format(data_json))
-    print('USERS {}'.format(USERS))
+    print(data_json)
 
 
 def write_corpus():
     data = {}
-    global USERS
     for user in USERS.values():
         data[user.slack_id] = user.corpus
 
-    with open("corpus.json", 'w') as file:
-        file.write(json.dumps(data))
+    with open("corpus.json", 'w') as f:
+        f.write(json.dumps(data))
+    print(data)
 
 
 class User:
@@ -60,6 +59,10 @@ class User:
 
     def update_corpus(self, message):
         message = message.split()
+        if len(message) == 1:
+            word = message[0]
+            if not word in self.corpus.keys():
+                self.corpus[word] = {}
         for pair in self.make_pairs(message):
             first = pair[0]
             second = pair[1]
@@ -74,6 +77,7 @@ class User:
                 self.corpus[first] = {
                     second: 1
                 }
+                print(self.corpus)
 
     def generate_sentence(self):
         start = random.choice(list(self.corpus.keys()))
