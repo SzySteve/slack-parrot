@@ -2,7 +2,6 @@ import json
 import random
 import re
 from slackbot.bot import Bot, default_reply, listen_to, respond_to
-import pdb
 
 USERNAME_REGEX = r'<@([\w]{9})>'
 
