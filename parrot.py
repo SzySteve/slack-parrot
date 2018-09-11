@@ -1,7 +1,10 @@
+import logging
 import json
 import random
 import re
 from slackbot.bot import Bot, default_reply, listen_to, respond_to
+
+logger = logging.getLogger(__name__)
 
 USERNAME_REGEX = r'<@([\w]{9})>'
 
@@ -16,7 +19,6 @@ def load_corpus():
 
     for user_id, corpus in data_json.items():
         USERS[user_id] = User(user_id, corpus=corpus)
-    print(data_json)
 
 
 def write_corpus():
@@ -26,7 +28,6 @@ def write_corpus():
 
     with open("corpus.json", 'w') as f:
         f.write(json.dumps(data))
-    print(data)
 
 
 class User:
@@ -53,8 +54,12 @@ class User:
 
     @staticmethod
     def make_pairs(message):
-        for i in range(len(message) - 1):
-            yield (message[i], message[i + 1])
+        for i in range(len(message)):
+            try:
+                next_word = message[i + 1]
+            except IndexError:
+                next_word = None
+            yield (message[i], next_word)
 
     def update_corpus(self, message):
         message = message.split()
@@ -66,17 +71,20 @@ class User:
             first = pair[0]
             second = pair[1]
 
-            if first in self.corpus.keys():
+            if first in self.corpus.keys() and second is not None:
                 word_counters = self.corpus[first]
                 if second in word_counters.keys():
                     word_counters[second] += 1
                 else:
                     word_counters[second] = 1
             else:
-                self.corpus[first] = {
-                    second: 1
-                }
-                print(self.corpus)
+                if second:
+                    self.corpus[first] = {
+                        second: 1
+                    }
+                else:
+                    self.corpus[first] = {}
+
 
     def generate_sentence(self):
         start = random.choice(list(self.corpus.keys()))
@@ -114,35 +122,38 @@ class User:
 
 @respond_to('@\w+')
 def respond(message):
-    text = message.body['text']
-    user_id = re.match(USERNAME_REGEX, text).group(1)
+    try:
+        text = message.body['text']
+        user_id = re.match(USERNAME_REGEX, text).group(1)
 
-    load_corpus()
-    print(user_id)
-    print("{}".format([u for u in USERS.keys()]))
+        load_corpus()
 
-    if user_id in USERS.keys():
-        user = USERS[user_id]
-        message.send(user.generate_sentence())
-    else:
-        message.send('Who is that?!')
+        if user_id in USERS.keys():
+            user = USERS[user_id]
+            message.send(user.generate_sentence())
+        else:
+            message.send('Who is that?!')
+    except Exception as e:
+        logger.exception('Caught error in respond')
 
 
 @listen_to('.*')
 def listen(message):
-    user_id = message.user['id']
-    load_corpus()
-    if user_id in USERS.keys():
-        # users we know
-        user = USERS[user_id]
-        user.update_corpus(message.body['text'])
-    else:
-        # users we dont know yet
-        user = User(user_id)
-        user.update_corpus(message.body['text'])
-        USERS[user_id] = user
-    write_corpus()
-
+    try:
+        user_id = message.user['id']
+        load_corpus()
+        if user_id in USERS.keys():
+            # users we know
+            user = USERS[user_id]
+            user.update_corpus(message.body['text'])
+        else:
+            # users we dont know yet
+            user = User(user_id)
+            user.update_corpus(message.body['text'])
+            USERS[user_id] = user
+        write_corpus()
+    except Exception as e:
+        logger.exception('Caught error in listen')
 
 def main():
     bot = Bot()
