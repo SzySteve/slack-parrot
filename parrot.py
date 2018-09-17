@@ -10,6 +10,7 @@ USERNAME_REGEX = r'<@([\w]{9})>'
 
 USERS = {}
 
+PRESS_F_COUNTER = 0
 
 def load_corpus():
     global USERS
@@ -139,17 +140,28 @@ def respond(message):
 
 @listen_to('.*')
 def listen(message):
+    global PRESS_F_COUNTER
     try:
+        text = message.body['text']
+        if text == 'f':
+            if PRESS_F_COUNTER > 3:
+                message.send('f')
+                PRESS_F_COUNTER = 0
+            else:
+                PRESS_F_COUNTER += 1
+        else:
+            PRESS_F_COUNTER = 0
+
         user_id = message.user['id']
         load_corpus()
         if user_id in USERS.keys():
             # users we know
             user = USERS[user_id]
-            user.update_corpus(message.body['text'])
+            user.update_corpus(text)
         else:
             # users we dont know yet
             user = User(user_id)
-            user.update_corpus(message.body['text'])
+            user.update_corpus(text)
             USERS[user_id] = user
         write_corpus()
     except Exception as e:
